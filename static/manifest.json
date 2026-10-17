@@ -1,0 +1,16 @@
+{
+  "name": "KinetiQ OS - Sports Vision AI",
+  "short_name": "KinetiQ",
+  "description": "پلتفرم هوشمند بینایی ماشین ورزشی، استعدادیابی، آنتروپومتری و آنالیز هندبال",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0d12",
+  "theme_color": "#00ff88",
+  "icons": [
+    {
+      "src": "/static/icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

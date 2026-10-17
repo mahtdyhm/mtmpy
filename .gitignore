@@ -1,0 +1,21 @@
+﻿# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*.class
+
+# Pytest / Virtual environment
+.pytest_cache/
+.env
+venv/
+env/
+
+# KinetiQ Database & Local Data
+data/*.db
+data/logs/*
+data/uploads/*
+data/output/*
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp

@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>KinetiQ OS | پلتفرم هوشمند بینایی ماشین ورزشی و استعدادیابی</title>
+  <link rel="manifest" href="/static/manifest.json">
+  <style>
+    :root {
+      --bg-base: #090c10;
+      --bg-surface: #121820;
+      --bg-card: #182230;
+      --border-subtle: #243242;
+      --accent-neon: #00ff88;
+      --accent-cyan: #00e5ff;
+      --accent-warning: #ffb700;
+      --accent-danger: #ff3366;
+      --text-main: #f0f6fc;
+      --text-muted: #8b949e;
+      --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* هدر مینیمال ورزشی */
+    header {
+      background: rgba(18, 24, 32, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent-neon), var(--accent-cyan));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      color: #000;
+      box-shadow: 0 0 16px rgba(0, 255, 136, 0.3);
+    }
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      color: #fff;
+    }
+    .brand-badge {
+      font-size: 0.7rem;
+      background: rgba(0, 255, 136, 0.15);
+      color: var(--accent-neon);
+      border: 1px solid rgba(0, 255, 136, 0.3);
+      padding: 2px 8px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .mode-switch {
+      display: flex;
+      background: var(--bg-card);
+      border-radius: 20px;
+      padding: 3px;
+      border: 1px solid var(--border-subtle);
+    }
+    .mode-btn {
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+    .mode-btn.active {
+      background: var(--accent-neon);
+      color: #000;
+      box-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+    }
+
+    /* نوبار پنل‌ها */
+    .panel-nav {
+      display: flex;
+      gap: 8px;
+      padding: 12px 24px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      overflow-x: auto;
+    }
+    .nav-tab {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .nav-tab:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+    }
+    .nav-tab.active {
+      background: var(--bg-card);
+      border-color: var(--accent-neon);
+      color: var(--accent-neon);
+      box-shadow: 0 2px 8px rgba(0, 255, 136, 0.15);
+    }
+
+    /* بدنه اصلی */
+    main {
+      flex: 1;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .panel-view {
+      display: none;
+      animation: fadeIn 0.25s ease-in-out;
+    }
+    .panel-view.active {
+      display: block;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* گرید ویو و استریم دوربین */
+    .stream-container {
+      position: relative;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      max-height: 60vh;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    video#webcam {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+    canvas#overlay-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(-1);
+    }
+
+    /* HUD Dashboard Overlay */
+    .hud-overlay {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(14, 20, 28, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--accent-neon);
+      border-radius: 10px;
+      padding: 12px 18px;
+      min-width: 200px;
+      pointer-events: none;
+      box-shadow: 0 0 16px rgba(0, 255, 136, 0.2);
+    }
+    .hud-title {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .hud-value {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--accent-neon);
+      font-family: monospace;
+    }
+    .hud-sub {
+      font-size: 0.8rem;
+      color: #fff;
+      margin-top: 4px;
+    }
+
+    .alert-banner {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 51, 102, 0.9);
+      color: #fff;
+      padding: 8px 24px;
+      border-radius: 24px;
+      font-weight: 700;
+      font-size: 1rem;
+      display: none;
+      box-shadow: 0 0 20px rgba(255, 51, 102, 0.6);
+      animation: pulse 1s infinite alternate;
+    }
+    @keyframes pulse {
+      from { transform: translateX(-50%) scale(1); }
+      to { transform: translateX(-50%) scale(1.04); }
+    }
+
+    /* کارت‌ها و المان‌های کنترلی */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 16px 20px;
+      transition: border-color 0.2s;
+    }
+    .stat-card:hover {
+      border-color: var(--accent-neon);
+    }
+    .stat-card h4 {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .stat-card .val {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .action-btn {
+      background: var(--accent-neon);
+      color: #000;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .action-btn:hover {
+      box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+      transform: translateY(-1px);
+    }
+    .action-btn.secondary {
+      background: var(--bg-card);
+      color: var(--text-main);
+      border: 1px solid var(--border-subtle);
+    }
+    .action-btn.secondary:hover {
+      border-color: var(--accent-neon);
+      color: var(--accent-neon);
+    }
+
+    /* جدول ورزشکاران */
+    .table-container {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: right;
+    }
+    th, td {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 0.9rem;
+    }
+    th {
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* ورودی‌ها و فرم‌ها */
+    input, select {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent-neon);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- هدر اپلیکیشن -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">K</div>
+      <div>
+        <div class="brand-title">KinetiQ OS</div>
+        <div class="brand-badge">Sports Biomechanics AI</div>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <div class="mode-switch">
+        <button id="btn-mode-offline" class="mode-btn active" onclick="setAiMode('offline')">⚡ محلی (آفلاین)</button>
+        <button id="btn-mode-online" class="mode-btn" onclick="setAiMode('online')">☁️ ابری (آنلاین)</button>
+      </div>
+      <button class="action-btn secondary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="testSound('beep')">🔊 تست صدا</button>
+    </div>
+  </header>
+
+  <!-- نوبار پنل‌ها -->
+  <div class="panel-nav">
+    <button class="nav-tab active" onclick="switchPanel('camera')">🎥 ۱. دوربین و کالیبراسیون</button>
+    <button class="nav-tab" onclick="switchPanel('test')">⚡ ۲. اجرای آزمون زنده</button>
+    <button class="nav-tab" onclick="switchPanel('analytics')">🔬 ۳. تحلیل عمیق و پلی‌بک</button>
+    <button class="nav-tab" onclick="switchPanel('athletes')">👤 ۴. بانک ورزشکاران</button>
+    <button class="nav-tab" onclick="switchPanel('reports')">📄 ۵. کارت استعدادیابی و خروجی</button>
+  </div>
+
+  <main>
+
+    <!-- پنل ۱: دوربین و کالیبراسیون -->
+    <section id="panel-camera" class="panel-view active">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <h3>کادر تصویر زنده و کالیبراسیون لنز</h3>
+        <button class="action-btn" onclick="startCamera()">📷 فعال‌سازی وب‌کم / دوربین</button>
+      </div>
+
+      <div class="stream-container">
+        <video id="webcam" autoplay playsinline muted></video>
+        <canvas id="overlay-canvas"></canvas>
+
+        <div class="hud-overlay">
+          <div class="hud-title">وضعیت کالیبراسیون</div>
+          <div class="hud-value" id="calib-val">500.0</div>
+          <div class="hud-sub">Pixels per Meter (PPM)</div>
+        </div>
+      </div>
+
+      <div class="card-grid">
+        <div class="stat-card">
+          <h4>روش کالیبراسیون مقیاس</h4>
+          <select id="calib-method" style="width: 100%; margin-top: 6px;">
+            <option value="line">خط‌کش رفرنس روی دیوار (۱۰۰ سانتی‌متر)</option>
+            <option value="court">خطوط استاندارد ۴ متر زمین هندبال</option>
+            <option value="auto">تخمین خودکار عمق و زاویه لنز</option>
+          </select>
+        </div>
+        <div class="stat-card">
+          <h4>نرخ فریم زنده دوربین (FPS)</h4>
+          <div class="val" id="fps-counter" style="color: var(--accent-neon);">30.0 FPS</div>
+        </div>
+        <div class="stat-card">
+          <h4>وضعیت قرارگیری سوژه در کادر</h4>
+          <div class="val" id="subject-align" style="color: var(--accent-cyan); font-size: 1.1rem;">در انتظار شناسایی ورزشکار...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- پنل ۲: آزمون و مانیتورینگ زنده -->
+    <section id="panel-test" class="panel-view">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div style="display: flex; gap: 12px; align-items: center;">
+          <select id="selected-test" style="min-width: 260px; font-weight: 700;">
+            <option value="height_span">📏 سنجش قد و اسپن (آنتروپومتری)</option>
+            <option value="vertical_jump">🚀 پرش عمودی و توان انفجاری (CMJ)</option>
+            <option value="handball_three_step">🤾 آزمون ۳ گام و خطاهای هندبال</option>
+          </select>
+          <select id="selected-athlete" style="min-width: 200px;">
+            <option value="1">ورزشکار: علی محمدی (شماره ۱)</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="action-btn" id="btn-toggle-test" onclick="toggleTestExecution()">▶ شروع آزمون</button>
+          <button class="action-btn secondary" onclick="resetTest()">🔄 ریست</button>
+        </div>
+      </div>
+
+      <div class="stream-container">
+        <!-- نمایش زنده HUD تست -->
+        <div class="hud-overlay" style="right: 16px; left: auto; border-color: var(--accent-cyan);">
+          <div class="hud-title" id="live-metric-title">رکورد لحظه‌ای</div>
+          <div class="hud-value" id="live-metric-val" style="color: var(--accent-cyan);">0.0</div>
+          <div class="hud-sub" id="live-metric-unit">سانتی‌متر</div>
+        </div>
+
+        <div class="hud-overlay" style="left: 16px; top: auto; bottom: 16px;">
+          <div class="hud-title">فاز حرکتی</div>
+          <div class="val" id="live-state" style="font-size: 1.2rem; color: #fff;">READY</div>
+        </div>
+
+        <div id="violation-alert" class="alert-banner">⚠️ خطای رانینگ هندبال (بیش از ۳ گام)!</div>
+      </div>
+
+      <div class="card-grid">
+        <div class="stat-card">
+          <h4>شاخص‌های استخراج‌شده</h4>
+          <div class="val" id="card-metric-1">—</div>
+        </div>
+        <div class="stat-card">
+          <h4>کیفیت دامنه حرکتی / فاز</h4>
+          <div class="val" id="card-metric-2">—</div>
+        </div>
+        <div class="stat-card">
+          <h4>تعداد فریم‌های تحلیل‌شده</h4>
+          <div class="val" id="card-frames">0 فریم</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- پنل ۳: تحلیل عمیق و پلی‌بک -->
+    <section id="panel-analytics" class="panel-view">
+      <h3>تحلیل فریم‌به‌فریم کینماتیک بیومکانیکی</h3>
+      <div style="margin: 16px 0; background: var(--bg-surface); padding: 18px; border-radius: 12px; border: 1px solid var(--border-subtle);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span>تایم‌لاین فریم‌های ویدیو:</span>
+          <span id="scrub-time" style="font-family: monospace; color: var(--accent-neon);">00:00.000</span>
+        </div>
+        <input type="range" id="video-scrubber" min="0" max="100" value="0" style="width: 100%; accent-color: var(--accent-neon);">
+      </div>
+
+      <div class="card-grid">
+        <div class="stat-card">
+          <h4>زاویه مفصل شانه / آرنج (درجه)</h4>
+          <div class="val" style="color: var(--accent-cyan);">112.4°</div>
+        </div>
+        <div class="stat-card">
+          <h4>سرعت زاویه‌ای پرتاب دست</h4>
+          <div class="val" style="color: var(--accent-warning);">4.8 m/s</div>
+        </div>
+        <div class="stat-card">
+          <h4>شاخص توان کشسانی (RSI)</h4>
+          <div class="val" style="color: var(--accent-neon);">2.15</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- پنل ۴: بانک ورزشکاران -->
+    <section id="panel-athletes" class="panel-view">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3>بانک اطلاعات ورزشکاران و استعدادیابی</h3>
+        <button class="action-btn" onclick="showNewAthletePrompt()">+ ثبت ورزشکار جدید</button>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>شناسه</th>
+              <th>نام و نام خانوادگی</th>
+              <th>کد ملی</th>
+              <th>رشته و پست</th>
+              <th>قد ایستاده</th>
+              <th>اسپن (طول دست)</th>
+              <th>شاخص Ape</th>
+              <th>عملیات</th>
+            </tr>
+          </thead>
+          <tbody id="athlete-table-body">
+            <tr>
+              <td>#1</td>
+              <td>علی محمدی</td>
+              <td>0011223344</td>
+              <td>هندبال - گوشه (Wing)</td>
+              <td>185.0 cm</td>
+              <td>192.0 cm</td>
+              <td><span style="color: var(--accent-neon); font-weight: 700;">1.04</span></td>
+              <td><button class="action-btn secondary" style="padding: 4px 10px; font-size: 0.75rem;">مشاهده پرونده</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- پنل ۵: کارت استعدادیابی و خروجی -->
+    <section id="panel-reports" class="panel-view">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3>کارت استعدادیابی رسمی و صدور گزارشات</h3>
+        <div style="display: flex; gap: 8px;">
+          <button class="action-btn" onclick="printReport()">🖨️ چاپ کارت استعدادیابی</button>
+          <button class="action-btn secondary" onclick="exportDataJson()">💾 دانلود دیتا (JSON/CSV)</button>
+        </div>
+      </div>
+
+      <div id="scout-card" style="background: var(--bg-surface); border: 2px solid var(--accent-neon); border-radius: 14px; padding: 24px; box-shadow: 0 8px 32px rgba(0,255,136,0.1);">
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 16px;">
+          <div>
+            <h2 style="color: #fff; margin-bottom: 4px;">کارت رسمی استعدادیابی بیومکانیک ورزشی</h2>
+            <div style="color: var(--text-muted); font-size: 0.85rem;">صادر شده توسط موتور هوش مصنوعی KinetiQ OS</div>
+          </div>
+          <div style="text-align: left;">
+            <div style="font-size: 1.2rem; font-weight: 800; color: var(--accent-neon);">نمره پتانسیل: ۹۴ / ۱۰۰</div>
+            <div style="color: var(--text-muted); font-size: 0.8rem;">رده سنی: نوجوانان هندبال</div>
+          </div>
+        </div>
+
+        <div class="card-grid" style="margin-top: 20px;">
+          <div class="stat-card">
+            <h4>قد واقعی بیومکانیکی</h4>
+            <div class="val">185.0 cm</div>
+          </div>
+          <div class="stat-card">
+            <h4>طول دو دست (اسپن)</h4>
+            <div class="val">192.0 cm</div>
+          </div>
+          <div class="stat-card">
+            <h4>شاخص Ape (اسپن / قد)</h4>
+            <div class="val" style="color: var(--accent-neon);">1.04</div>
+          </div>
+          <div class="stat-card">
+            <h4>رکورد پرش عمودی (CMJ)</h4>
+            <div class="val" style="color: var(--accent-cyan);">52.4 cm</div>
+          </div>
+        </div>
+
+        <div style="margin-top: 20px; background: rgba(0, 255, 136, 0.05); border: 1px dashed var(--accent-neon); padding: 14px; border-radius: 10px;">
+          <h4 style="color: var(--accent-neon); margin-bottom: 6px;">توصیه و تحلیل فنی استعدادیابی:</h4>
+          <p style="font-size: 0.9rem; line-height: 1.6; color: #ddd;">
+            ورزشکار دارای شاخص اسپن به قد ۱.۰۴ است که نشان‌دهنده مزیت برجسته دست‌های بلند نسبت به قد است. ترکیب پرش عمودی بالای ۵۰ سانتی‌متر و ریتم ۳ گام سریع، بازیکن را برای پست‌های مدافع وسط، بغل زن شوت‌زن و دروازه‌بانی در اولویت رده‌های نخبه قرار می‌دهد.
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // سیستم سنتز صدای مرورگر (Audio Synthesizer بدون نیاز به فایل صوتی خارجی)
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function testSound(type) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      if (type === 'beep') {
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // نت لا (A5)
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.15);
+      } else if (type === 'violation') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.4);
+      }
+    }
+
+    // جابجایی بین پنل‌ها
+    function switchPanel(panelId) {
+      document.querySelectorAll('.panel-view').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+
+      const target = document.getElementById(`panel-${panelId}`);
+      if (target) target.classList.add('active');
+
+      const tabs = Array.from(document.querySelectorAll('.nav-tab'));
+      const activeTab = tabs.find(t => t.getAttribute('onclick').includes(panelId));
+      if (activeTab) activeTab.classList.add('active');
+    }
+
+    // تغییر مود آنلاین / آفلاین
+    function setAiMode(mode) {
+      document.getElementById('btn-mode-offline').classList.toggle('active', mode === 'offline');
+      document.getElementById('btn-mode-online').classList.toggle('active', mode === 'online');
+      fetch('/health')
+        .then(res => res.json())
+        .then(data => {
+          console.log(`AI Mode updated to: ${mode}`, data);
+        });
+    }
+
+    // کنترل دوربین و استریم
+    let streamActive = false;
+    async function startCamera() {
+      const video = document.getElementById('webcam');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+        video.srcObject = stream;
+        streamActive = true;
+        document.getElementById('subject-align').innerText = 'دوربین فعال شد - سوژه آماده است';
+        testSound('beep');
+      } catch (err) {
+        alert('امکان دسترسی به وب‌کم وجود ندارد: ' + err.message);
+      }
+    }
+
+    // شروع و خاتمه آزمون
+    let testRunning = false;
+    let testInterval = null;
+    function toggleTestExecution() {
+      const btn = document.getElementById('btn-toggle-test');
+      const testSelect = document.getElementById('selected-test').value;
+
+      if (!testRunning) {
+        testRunning = true;
+        btn.innerText = '⏹ توقف آزمون';
+        btn.style.background = 'var(--accent-danger)';
+        document.getElementById('live-state').innerText = 'TESTING';
+        testSound('beep');
+
+        // شبیه‌سازی تله‌متری لایو
+        let frameCount = 0;
+        testInterval = setInterval(() => {
+          frameCount += 1;
+          document.getElementById('card-frames').innerText = `${frameCount} فریم`;
+
+          if (testSelect === 'height_span') {
+            document.getElementById('live-metric-title').innerText = 'قد لحظه‌ای';
+            document.getElementById('live-metric-val').innerText = (185.0 + Math.random() * 0.4).toFixed(1);
+            document.getElementById('live-metric-unit').innerText = 'سانتی‌متر';
+            document.getElementById('card-metric-1').innerText = 'طول اسپن: ۱۹۲.۰ cm';
+            document.getElementById('card-metric-2').innerText = 'شاخص Ape: ۱.۰۴';
+          } else if (testSelect === 'vertical_jump') {
+            document.getElementById('live-metric-title').innerText = 'اوج پرش';
+            document.getElementById('live-metric-val').innerText = '52.4';
+            document.getElementById('live-metric-unit').innerText = 'سانتی‌متر (CMJ)';
+            document.getElementById('card-metric-1').innerText = 'زمان پرواز: ۰.۶۵ ثانیه';
+            document.getElementById('card-metric-2').innerText = 'شاخص توان RSI: ۲.۱';
+          } else if (testSelect === 'handball_three_step') {
+            document.getElementById('live-metric-title').innerText = 'تعداد گام‌ها';
+            const step = Math.min(4, Math.floor(frameCount / 10));
+            document.getElementById('live-metric-val').innerText = step;
+            document.getElementById('live-metric-unit').innerText = 'گام برداشته شده';
+            if (step >= 4) {
+              document.getElementById('violation-alert').style.display = 'block';
+              testSound('violation');
+            }
+          }
+        }, 150);
+
+      } else {
+        testRunning = false;
+        clearInterval(testInterval);
+        btn.innerText = '▶ شروع آزمون';
+        btn.style.background = 'var(--accent-neon)';
+        document.getElementById('live-state').innerText = 'COMPLETED';
+        document.getElementById('violation-alert').style.display = 'none';
+        testSound('beep');
+      }
+    }
+
+    function resetTest() {
+      if (testInterval) clearInterval(testInterval);
+      testRunning = false;
+      document.getElementById('btn-toggle-test').innerText = '▶ شروع آزمون';
+      document.getElementById('btn-toggle-test').style.background = 'var(--accent-neon)';
+      document.getElementById('live-metric-val').innerText = '0.0';
+      document.getElementById('live-state').innerText = 'READY';
+      document.getElementById('card-frames').innerText = '0 فریم';
+      document.getElementById('violation-alert').style.display = 'none';
+    }
+
+    function showNewAthletePrompt() {
+      const name = prompt('نام و نام خانوادگی ورزشکار جدید را وارد کنید:');
+      if (name) {
+        const tbody = document.getElementById('athlete-table-body');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>#${tbody.children.length + 1}</td>
+          <td>${name}</td>
+          <td>${Math.floor(1000000000 + Math.random() * 9000000000)}</td>
+          <td>هندبال - بازیکن</td>
+          <td>—</td>
+          <td>—</td>
+          <td>—</td>
+          <td><button class="action-btn secondary" style="padding: 4px 10px; font-size: 0.75rem;">مشاهده پرونده</button></td>
+        `;
+        tbody.appendChild(tr);
+        alert(`ورزشکار "${name}" با موفقیت ثبت شد.`);
+      }
+    }
+
+    function printReport() {
+      window.print();
+    }
+
+    function exportDataJson() {
+      const data = {
+        platform: "KinetiQ OS",
+        timestamp: new Date().toISOString(),
+        athlete: "علی محمدی",
+        standing_height_cm: 185.0,
+        arm_span_cm: 192.0,
+        ape_index: 1.04,
+        max_jump_cm: 52.4,
+        handball_three_step_valid: true
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kinetiq_scout_report_${Date.now()}.json`;
+      a.click();
+    }
+  </script>
+</body>
+</html>
