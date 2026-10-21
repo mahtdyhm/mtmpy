@@ -64,7 +64,9 @@ app.include_router(athletes_router)
 app.include_router(tests_router)
 
 # سرو فایل‌های استاتیک
-static_dir = settings.BASE_DIR / "static"
+bundle_static = settings.BUNDLE_DIR / "static"
+base_static = settings.BASE_DIR / "static"
+static_dir = bundle_static if bundle_static.is_dir() else base_static
 static_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
@@ -72,7 +74,9 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 @app.get("/", tags=["UI"])
 def serve_ui():
     """ارائه داشبورد وب زنده KinetiQ OS"""
-    index_file = settings.BASE_DIR / "static" / "index.html"
+    index_file = bundle_static / "index.html"
+    if not index_file.is_file():
+        index_file = base_static / "index.html"
     if index_file.is_file():
         return FileResponse(str(index_file))
     return {"message": "KinetiQ OS Backend Running"}

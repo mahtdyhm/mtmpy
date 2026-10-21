@@ -1,4 +1,4 @@
-﻿# Byte-compiled / optimized
+# Byte-compiled / optimized
 __pycache__/
 *.py[cod]
 *.class
@@ -19,3 +19,10 @@ data/output/*
 .vscode/
 .idea/
 *.swp
+
+# Build & Distribution
+pack-exe-win/
+dist/
+build/
+*.spec
+

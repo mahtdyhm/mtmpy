@@ -47,9 +47,19 @@ class YoloPoseEstimator(BasePoseEstimator):
             return
         try:
             from ultralytics import YOLO
-            self.model = YOLO(self.model_name)
+            from pathlib import Path
+            from config.settings import settings
+
+            target_path = Path(self.model_name)
+            if not target_path.is_file():
+                for base in [getattr(settings, "BUNDLE_DIR", None), settings.BASE_DIR]:
+                    if base and (base / self.model_name).is_file():
+                        target_path = base / self.model_name
+                        break
+
+            self.model = YOLO(str(target_path))
             self.is_initialized = True
-            logger.info(f"موتور پوز آفلاین YOLO با مدل '{self.model_name}' با موفقیت لود شد.")
+            logger.info(f"موتور پوز آفلاین YOLO با مدل '{target_path}' با موفقیت لود شد.")
         except Exception as e:
             logger.error(f"خطا در بارگذاری مدل YOLO: {e}")
             raise

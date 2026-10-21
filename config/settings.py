@@ -3,13 +3,18 @@ KinetiQ OS - Configuration & Settings Manager
 مدیریت متمرکز تنظیمات، امنیت، مسیرها و وضعیت هیبریدی (آنلاین/آفلاین)
 """
 
-from __future__ import annotations
 import os
+import sys
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# دایرکتوری ریشه پروژه
-BASE_DIR = Path(__file__).resolve().parent.parent
+# پشتیبانی از محیط اجرایی کامپایل‌شده (PyInstaller) یا حالت عادی
+if getattr(sys, "frozen", False):
+    BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+    BASE_DIR = Path(sys.executable).resolve().parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    BUNDLE_DIR = BASE_DIR
 
 
 class Settings(BaseSettings):
@@ -26,6 +31,7 @@ class Settings(BaseSettings):
 
     # مسیرهای داده و دایرکتوری‌ها
     BASE_DIR: Path = BASE_DIR
+    BUNDLE_DIR: Path = BUNDLE_DIR
     DATA_DIR: Path = BASE_DIR / "data"
     OUTPUT_DIR: Path = BASE_DIR / "data" / "output"
     UPLOADS_DIR: Path = BASE_DIR / "data" / "uploads"
