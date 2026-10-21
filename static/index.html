@@ -377,9 +377,12 @@
 
     <!-- پنل ۱: دوربین و کالیبراسیون -->
     <section id="panel-camera" class="panel-view active">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
         <h3>کادر تصویر زنده و کالیبراسیون لنز</h3>
-        <button class="action-btn" onclick="startCamera()">📷 فعال‌سازی وب‌کم / دوربین</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="action-btn secondary" onclick="switchCamera()">🔄 دوربین جلو / پشت</button>
+          <button class="action-btn" onclick="startCamera()">📷 فعال‌سازی دوربین</button>
+        </div>
       </div>
 
       <div class="stream-container">
@@ -629,18 +632,79 @@
         });
     }
 
-    // کنترل دوربین و استریم
+    // کنترل دوربین و استریم سازگار با موبایل (iOS/Android) و دسکتاپ
     let streamActive = false;
+    let currentFacingMode = "user"; // "user" برای سلفی یا "environment" برای دوربین پشت
+    let currentStream = null;
+
+    async function switchCamera() {
+      currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
+      if (streamActive) {
+        await startCamera();
+      } else {
+        alert("حالت دوربین به " + (currentFacingMode === "user" ? "دوربین جلو (سلفی)" : "دوربین اصلی (پشت)") + " تغییر یافت. اکنون دکمه فعال‌سازی دوربین را لمس کنید.");
+      }
+    }
+
     async function startCamera() {
       const video = document.getElementById('webcam');
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('مرورگر شما دسترسی به دوربین را مسدود کرده یا صفحه با پروتکل امن HTTPS باز نشده است.\nلطفاً اطمینان حاصل کنید آدرس حتماً با https:// شروع شده باشد.');
+        return;
+      }
+
+      // متوقف کردن استریم قبلی در صورت وجود
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+
+      // ترتیب اولویت سازگاری: از رزولوشن دلخواه به سمت پایه‌ای‌ترین حالت موبایل
+      const constraintsList = [
+        { video: { facingMode: currentFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+        { video: { facingMode: currentFacingMode }, audio: false },
+        { video: true, audio: false }
+      ];
+
+      let stream = null;
+      let lastError = null;
+
+      for (const constraint of constraintsList) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraint);
+          if (stream) break;
+        } catch (e) {
+          lastError = e;
+          console.warn("تلاش مجدد برای دریافت دسترسی دوربین با تنظیمات سبک‌تر...", e);
+        }
+      }
+
+      if (stream) {
+        currentStream = stream;
         video.srcObject = stream;
+        video.setAttribute("playsinline", "true");
+        video.setAttribute("autoplay", "true");
+        video.setAttribute("muted", "true");
+        try {
+          await video.play();
+        } catch (e) {
+          console.log("پخش خودکار انجام شد");
+        }
         streamActive = true;
-        document.getElementById('subject-align').innerText = 'دوربین فعال شد - سوژه آماده است';
+        document.getElementById('subject-align').innerText = 'دوربین فعال شد - سوژه آماده است (' + (currentFacingMode === "user" ? "دوربین جلو" : "دوربین پشت") + ')';
         testSound('beep');
-      } catch (err) {
-        alert('امکان دسترسی به وب‌کم وجود ندارد: ' + err.message);
+      } else {
+        let msg = 'امکان دسترسی به دوربین وجود ندارد: ';
+        if (lastError && (lastError.name === 'NotAllowedError' || lastError.name === 'PermissionDeniedError')) {
+          msg = 'دسترسی به دوربین توسط تنظیمات گوشی یا مرورگر مسدود شده است!\n\nراهنما: در بالای مرورگر کنار آدرس سایت، روی آیکون قفل (یا تنظیمات سایت) بزنید و گزینه Camera را روی Allow (اجازه دادن) قرار دهید.';
+        } else if (lastError && lastError.name === 'NotFoundError') {
+          msg = 'هیچ دوربینی روی دستگاه شما شناسایی نشد.';
+        } else if (lastError && lastError.name === 'NotReadableError') {
+          msg = 'دوربین توسط برنامه دیگری در گوشی در حال استفاده است. لطفاً سایر برنامه‌ها را ببندید.';
+        } else {
+          msg += (lastError ? (lastError.name + ' - ' + lastError.message) : 'خطای نامشخص');
+        }
+        alert(msg);
       }
     }
 
