@@ -3,25 +3,30 @@ KinetiQ OS - Security & Authentication Engine
 مدیریت هش کردن رمز عبور با Bcrypt و تولید/اعتبارسنجی توکن‌های JWT
 """
 
+import bcrypt
 from datetime import datetime, timedelta
 from typing import Optional, Any, Dict
-from passlib.context import CryptContext
 from jose import jwt, JWTError
 from config.settings import settings
 from core.logging import logger
 
-# تنظیم کانتکست هش رمز عبور با استفاده از الگوریتم ایمن Bcrypt
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """اعتبارسنجی رمز عبور خام در برابر هش ذخیره‌شده"""
-    return pwd_context.verify(plain_password, hashed_password)
+    """اعتبارسنجی رمز عبور خام در برابر هش ذخیره‌شده با bcrypt مستقیم"""
+    try:
+        pw_bytes = plain_password.encode("utf-8")[:72]
+        hash_bytes = hashed_password.encode("utf-8")
+        return bcrypt.checkpw(pw_bytes, hash_bytes)
+    except Exception as e:
+        logger.error(f"خطا در بررسی رمز عبور: {e}")
+        return False
 
 
 def get_password_hash(password: str) -> str:
-    """تولید هش غیرقابل بازگشت برای رمز عبور"""
-    return pwd_context.hash(password)
+    """تولید هش استاندارد bcrypt بدون وابستگی به باگ‌های قدیمی passlib"""
+    pw_bytes = password.encode("utf-8")[:72]
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pw_bytes, salt).decode("utf-8")
 
 
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
