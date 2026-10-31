@@ -109,3 +109,19 @@ class ScoutReportExporter:
         }
         output_path.write_text(json.dumps(card, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
         return output_path
+
+    @staticmethod
+    def export_pdf_report(
+        metric_summary: MetricSummary,
+        athlete_info: Dict[str, Any],
+        output_path: Path,
+        session_info: Optional[Dict[str, Any]] = None,
+    ) -> Path:
+        """صدور گزارش استعدادیابی رسمی و شکیل PDF به همراه نمودار راداری عملکرد"""
+        from core.export.pdf_generator import ScoutPDFReportGenerator
+        return ScoutPDFReportGenerator.create_report(
+            athlete_info=athlete_info,
+            metric_summary=metric_summary,
+            output_path=output_path,
+            session_info=session_info,
+        )

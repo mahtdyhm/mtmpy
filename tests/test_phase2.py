@@ -82,6 +82,17 @@ def test_2_5_object_tracker():
     assert 0.4 < cx < 0.6
     assert 0.4 < cy < 0.6
 
+    # تست ردیابی پیشرفته و اکستراپولاسیون حرکت در زمان پنهان شدن توپ
+    adv_res = tracker.track_ball_advanced(test_frame, timestamp_ms=100.0)
+    assert adv_res["detected"] is True
+    assert adv_res["is_interpolated"] is False
+
+    # فریم خالی بدون توپ -> اکستراپولاسیون خودکار
+    blank_frame = np.zeros((300, 300, 3), dtype=np.uint8)
+    occluded_res = tracker.track_ball_advanced(blank_frame, timestamp_ms=133.0)
+    assert occluded_res["detected"] is True
+    assert occluded_res["is_interpolated"] is True
+
 
 def test_2_6_frame_ring_buffer():
     """تست تسک ۲.۶: بافر حلقوی فریم‌ها و پیشگیری از نشت حافظه"""

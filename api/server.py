@@ -21,6 +21,7 @@ from api.routes_tests import router as tests_router
 from plugins.anthropometry.height_span import HeightSpanTest
 from plugins.jumps.vertical_jump import VerticalJumpTest
 from plugins.handball.three_step import HandballThreeStepTest
+from plugins.jumps.broad_jump import StandingBroadJumpTest
 
 
 @asynccontextmanager

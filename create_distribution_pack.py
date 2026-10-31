@@ -80,7 +80,7 @@ sqlmodel>=0.0.16
 pydantic>=2.6.0
 pydantic-settings>=2.2.0
 python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.0
 python-multipart>=0.0.9
 ultralytics>=8.1.0
 torch>=2.0.0
@@ -90,6 +90,8 @@ opencv-python>=4.8.0
 numpy>=1.24.0
 websockets>=12.0
 aiofiles>=23.2.0
+reportlab>=4.0.0
+matplotlib>=3.7.0
 """
     req_file.write_text(req_content, encoding="utf-8")
     print("-> Generated requirements.txt")

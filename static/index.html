@@ -430,6 +430,7 @@
           <select id="selected-test" style="min-width: 260px; font-weight: 700;">
             <option value="height_span">📏 سنجش قد و اسپن (آنتروپومتری)</option>
             <option value="vertical_jump">🚀 پرش عمودی و توان انفجاری (CMJ)</option>
+            <option value="broad_jump">🎯 آزمون پرش طول جفت‌پا (Broad Jump)</option>
             <option value="handball_three_step">🤾 آزمون ۳ گام و خطاهای هندبال</option>
           </select>
           <select id="selected-athlete" style="min-width: 200px;">
@@ -456,6 +457,18 @@
         </div>
 
         <div id="violation-alert" class="alert-banner">⚠️ خطای رانینگ هندبال (بیش از ۳ گام)!</div>
+      </div>
+
+      <!-- نمودار زنده کینماتیک بیومکانیکی -->
+      <div style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 14px 18px; margin: 16px 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-cyan); box-shadow: 0 0 8px var(--accent-cyan);"></span>
+            <span style="font-weight: 700; font-size: 0.85rem;" id="chart-metric-label">نمودار زنده کینماتیک (ارتفاع و شتاب لحظه‌ای)</span>
+          </div>
+          <div style="font-size: 0.75rem; color: var(--accent-cyan); font-family: monospace; font-weight: 700;" id="chart-live-val">0.0</div>
+        </div>
+        <canvas id="live-chart-canvas" width="800" height="110" style="width: 100%; height: 110px; display: block; border-radius: 8px; background: rgba(10, 14, 20, 0.9);"></canvas>
       </div>
 
       <div class="card-grid">
@@ -543,7 +556,8 @@
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <h3>کارت استعدادیابی رسمی و صدور گزارشات</h3>
         <div style="display: flex; gap: 8px;">
-          <button class="action-btn" onclick="printReport()">🖨️ چاپ کارت استعدادیابی</button>
+          <button class="action-btn" onclick="downloadScoutPDF()">📄 دریافت کارنامه رسمی (PDF)</button>
+          <button class="action-btn secondary" onclick="printReport()">🖨️ چاپ کارت استعدادیابی</button>
           <button class="action-btn secondary" onclick="exportDataJson()">💾 دانلود دیتا (JSON/CSV)</button>
         </div>
       </div>
@@ -936,6 +950,115 @@
     // شروع و خاتمه آزمون ورزشی
     let testRunning = false;
     let testInterval = null;
+
+    // کلاس رسم بلادرنگ نمودار کینماتیک (Real-time Kinematic Waveform Chart)
+    class KinematicChart {
+      constructor(canvasId) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas ? this.canvas.getContext('2d') : null;
+        this.data = [];
+        this.maxPoints = 50;
+        this.init();
+      }
+
+      init() {
+        if (!this.ctx) return;
+        this.clear();
+      }
+
+      clear() {
+        this.data = [];
+        this.render();
+      }
+
+      push(value) {
+        this.data.push(value);
+        if (this.data.length > this.maxPoints) {
+          this.data.shift();
+        }
+        this.render();
+      }
+
+      render() {
+        if (!this.ctx) return;
+        const ctx = this.ctx;
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // خطوط شطرنجی پس‌زمینه
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.lineWidth = 1;
+        for (let y = 25; y < h; y += 25) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(w, y);
+          ctx.stroke();
+        }
+
+        if (this.data.length < 2) return;
+
+        let minVal = Math.min(...this.data);
+        let maxVal = Math.max(...this.data);
+        if (minVal === maxVal) {
+          minVal -= 5;
+          maxVal += 5;
+        }
+        const range = (maxVal - minVal) || 1;
+
+        const stepX = w / (this.maxPoints - 1);
+        const startX = (this.maxPoints - this.data.length) * stepX;
+
+        // گرادیان ناحیه زیر خط
+        const gradient = ctx.createLinearGradient(0, 0, 0, h);
+        gradient.addColorStop(0, 'rgba(0, 229, 255, 0.35)');
+        gradient.addColorStop(1, 'rgba(0, 229, 255, 0.0)');
+
+        // پر کردن ناحیه زیر منحنی
+        ctx.beginPath();
+        this.data.forEach((val, i) => {
+          const x = startX + i * stepX;
+          const y = h - ((val - minVal) / range) * (h - 24) - 12;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.lineTo(w, h);
+        ctx.lineTo(startX, h);
+        ctx.closePath();
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        // رسم خط نئونی نمودار
+        ctx.beginPath();
+        this.data.forEach((val, i) => {
+          const x = startX + i * stepX;
+          const y = h - ((val - minVal) / range) * (h - 24) - 12;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.strokeStyle = '#00e5ff';
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = '#00e5ff';
+        ctx.shadowBlur = 8;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // رسم نقطه آخرین وضعیت
+        const lastX = startX + (this.data.length - 1) * stepX;
+        const lastY = h - ((this.data[this.data.length - 1] - minVal) / range) * (h - 24) - 12;
+        ctx.beginPath();
+        ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#00ff88';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+
+    const liveChart = new KinematicChart('live-chart-canvas');
+
     function toggleTestExecution() {
       const btn = document.getElementById('btn-toggle-test');
       const testSelect = document.getElementById('selected-test').value;
@@ -953,24 +1076,45 @@
           document.getElementById('card-frames').innerText = `${frameCount} فریم`;
 
           if (testSelect === 'height_span') {
+            const currentH = Number((liveMetrics.heightCm || 185.0).toFixed(1));
             document.getElementById('live-metric-title').innerText = 'قد لحظه‌ای ورزشکار';
-            document.getElementById('live-metric-val').innerText = (liveMetrics.heightCm || 185.0).toFixed(1);
+            document.getElementById('live-metric-val').innerText = currentH;
             document.getElementById('live-metric-unit').innerText = 'سانتی‌متر';
             const span = (liveMetrics.spanCm || 192.0);
             document.getElementById('card-metric-1').innerText = `طول اسپن: ${span.toFixed(1)} cm`;
             const ape = (span / Math.max(1, (liveMetrics.heightCm || 185.0))).toFixed(2);
             document.getElementById('card-metric-2').innerText = `شاخص Ape: ${ape}`;
+            document.getElementById('chart-metric-label').innerText = 'نمودار زنده قد دینامیک (سانتی‌متر)';
+            document.getElementById('chart-live-val').innerText = `${currentH} cm`;
+            liveChart.push(currentH);
           } else if (testSelect === 'vertical_jump') {
+            const jumpVal = Number((50.0 + Math.sin(frameCount * 0.4) * 8.0).toFixed(1));
             document.getElementById('live-metric-title').innerText = 'اوج پرش عمودی (CMJ)';
-            document.getElementById('live-metric-val').innerText = (50.0 + Math.sin(frameCount * 0.4) * 4.0).toFixed(1);
+            document.getElementById('live-metric-val').innerText = jumpVal;
             document.getElementById('live-metric-unit').innerText = 'سانتی‌متر';
             document.getElementById('card-metric-1').innerText = 'زمان پرواز: ۰.۶۴ ثانیه';
             document.getElementById('card-metric-2').innerText = 'شاخص کشسانی RSI: ۲.۱';
+            document.getElementById('chart-metric-label').innerText = 'نمودار زنده مسیر حرکت و شتاب پرش (CMJ)';
+            document.getElementById('chart-live-val').innerText = `${jumpVal} cm`;
+            liveChart.push(jumpVal);
+          } else if (testSelect === 'broad_jump') {
+            const distVal = Number((180.0 + Math.min(45.0, frameCount * 3.5)).toFixed(1));
+            document.getElementById('live-metric-title').innerText = 'مسافت پرش طول جفت‌پا';
+            document.getElementById('live-metric-val').innerText = distVal;
+            document.getElementById('live-metric-unit').innerText = 'سانتی‌متر';
+            document.getElementById('card-metric-1').innerText = 'زاویه تیک‌آف: ۴۲.۵ درجه';
+            document.getElementById('card-metric-2').innerText = 'پایداری در فرود: عالی (۹۲٪)';
+            document.getElementById('chart-metric-label').innerText = 'نمودار افقی مسیر پرتاب و فرود پرش طول';
+            document.getElementById('chart-live-val').innerText = `${distVal} cm`;
+            liveChart.push(distVal);
           } else if (testSelect === 'handball_three_step') {
             document.getElementById('live-metric-title').innerText = 'شمارش ریتم گام‌ها';
             const step = Math.min(4, Math.floor(frameCount / 12));
             document.getElementById('live-metric-val').innerText = step;
             document.getElementById('live-metric-unit').innerText = 'گام برداشته شده';
+            document.getElementById('chart-metric-label').innerText = 'ریتم فرود پا و گام‌های هندبال';
+            document.getElementById('chart-live-val').innerText = `${step} گام`;
+            liveChart.push(step * 25);
             if (step >= 4) {
               document.getElementById('violation-alert').style.display = 'block';
               testSound('violation');
@@ -992,9 +1136,11 @@
     function resetTest() {
       if (testInterval) clearInterval(testInterval);
       testRunning = false;
+      liveChart.clear();
       document.getElementById('btn-toggle-test').innerText = '▶ شروع آزمون';
       document.getElementById('btn-toggle-test').style.background = 'var(--accent-neon)';
       document.getElementById('live-metric-val').innerText = '0.0';
+      document.getElementById('chart-live-val').innerText = '0.0';
       document.getElementById('live-state').innerText = 'READY';
       document.getElementById('card-frames').innerText = '0 فریم';
       document.getElementById('violation-alert').style.display = 'none';
@@ -1018,6 +1164,12 @@
         tbody.appendChild(tr);
         alert(`ورزشکار "${name}" با موفقیت ثبت شد.`);
       }
+    }
+
+    function downloadScoutPDF() {
+      // دریافت کارنامه استعدادیابی پی‌دی‌اف از سرور
+      const athleteName = "علی محمدی";
+      window.open('/api/tests/sessions/1/report.pdf', '_blank');
     }
 
     function printReport() {
