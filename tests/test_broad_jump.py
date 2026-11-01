@@ -70,3 +70,4 @@ def test_broad_jump_in_registry():
     tests = plugin_registry.list_available_tests()
     test_ids = [t["test_id"] for t in tests]
     assert "broad_jump" in test_ids
+

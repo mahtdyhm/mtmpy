@@ -99,3 +99,4 @@ def test_pdf_download_api_endpoint():
     assert pdf_res.status_code == 200
     assert pdf_res.headers["content-type"] == "application/pdf"
     assert pdf_res.content.startswith(b"%PDF-")
+
