@@ -151,14 +151,13 @@ tab_live_cam, tab_snapshot, tab_video, tab_report, tab_pwa = st.tabs([
 # ==============================================================
 with tab_live_cam:
     st.markdown("### ⚡ ردیابی زنده مفاصل و زوایای بدن در لحظه (Real-Time)")
-    st.caption("دکمه زیر را بزنید؛ دوربین لپ‌تاپ یا گوشی فعال شده و همان لحظه که حرکت می‌کنید، اسکلت نئونی سبز و زوایای زانو و آرنج روی بدن شما رسم می‌شوند.")
+    st.caption("دکمه زیر را بزنید؛ دوربین گوشی یا سیستم فعال شده و اسکلت نئونی و زوایای بدن روی تصویر رسم می‌شوند. برای جابجایی بین دوربین پشت و سلفی از دکمه چرخش دوربین استفاده کنید.")
     
     live_cam_html = f"""
     <!DOCTYPE html>
     <html lang="fa" dir="rtl">
     <head>
       <meta charset="UTF-8">
-      <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
       <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
       <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
@@ -173,8 +172,8 @@ with tab_live_cam:
           border: 2px solid #00ff88;
           box-shadow: 0 0 25px rgba(0,255,136,0.25);
         }}
-        video {{ width: 100%; height: auto; transform: scaleX(-1); display: block; }}
-        canvas {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); pointer-events: none; }}
+        video {{ width: 100%; height: auto; display: block; }}
+        canvas {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }}
         .hud-panel {{
           position: absolute;
           top: 12px;
@@ -191,19 +190,29 @@ with tab_live_cam:
         }}
         .hud-title {{ color: #8b949e; font-size: 11px; margin-bottom: 2px; }}
         .hud-val {{ font-weight: 800; font-size: 18px; margin-bottom: 6px; font-family: monospace; }}
-        .ctrl-bar {{ margin-top: 14px; display: flex; justify-content: center; gap: 12px; }}
+        .ctrl-bar {{ margin-top: 14px; display: flex; justify-content: center; align-items: center; gap: 12px; flex-wrap: wrap; }}
         .btn {{
           background: #00ff88;
           color: #000;
           font-weight: 800;
           border: none;
-          padding: 10px 24px;
+          padding: 10px 22px;
           border-radius: 8px;
           cursor: pointer;
           font-size: 14px;
           transition: all 0.2s;
         }}
         .btn:hover {{ transform: scale(1.04); box-shadow: 0 0 16px #00ff88; }}
+        .btn-switch {{
+          background: #182230;
+          color: #00e5ff;
+          border: 1px solid #00e5ff;
+        }}
+        .btn-switch:hover {{
+          background: #00e5ff;
+          color: #000;
+          box-shadow: 0 0 16px rgba(0, 229, 255, 0.4);
+        }}
         .fps-badge {{
           position: absolute;
           top: 12px;
@@ -216,6 +225,17 @@ with tab_live_cam:
           font-family: monospace;
           font-size: 12px;
         }}
+        .cam-badge {{
+          position: absolute;
+          bottom: 12px;
+          left: 12px;
+          background: rgba(14,20,28,0.85);
+          border: 1px solid #00ff88;
+          color: #00ff88;
+          padding: 4px 10px;
+          border-radius: 6px;
+          font-size: 12px;
+        }}
       </style>
     </head>
     <body>
@@ -223,6 +243,7 @@ with tab_live_cam:
         <video id="live-vid" autoplay playsinline muted></video>
         <canvas id="live-canvas"></canvas>
         <div class="fps-badge" id="fps-badge">0.0 FPS</div>
+        <div class="cam-badge" id="cam-badge">📷 دوربین پشت (اصلی)</div>
         <div class="hud-panel">
           <div class="hud-title">قد بیومکانیکی لحظه‌ای:</div>
           <div class="hud-val" id="hud-h" style="color: #00ff88;">{user_calib_height} cm</div>
@@ -235,14 +256,22 @@ with tab_live_cam:
         </div>
       </div>
       <div class="ctrl-bar">
-        <button class="btn" id="btn-toggle" onclick="toggleCamera()">▶ روشن کردن دوربین زنده</button>
+        <button class="btn" id="btn-toggle" onclick="toggleCamera()">▶ روشن کردن دوربین</button>
+        <button class="btn btn-switch" id="btn-flip" onclick="switchCamera()">🔄 چرخش دوربین (پشت / جلو)</button>
+      </div>
+      <div id="status-info" style="margin-top: 8px; font-size: 12px; color: #8b949e;">
+        پیش‌فرض: دوربین پشت فعال است | در صورت نیاز دکمه چرخش دوربین را بزنید
       </div>
 
       <script>
         let isCamActive = false;
-        let camInstance = null;
+        let currentFacingMode = 'environment';
+        let currentStream = null;
+        let availableDevices = [];
+        let currentDeviceIndex = 0;
         let poseEngine = null;
         let lastTimestamp = performance.now();
+        let isLooping = false;
 
         function calcAngle(p1, p2, p3) {{
           const v1 = {{ x: p1.x - p2.x, y: p1.y - p2.y }};
@@ -276,6 +305,7 @@ with tab_live_cam:
           const lms = results.poseLandmarks;
           const w = canvas.width;
           const h = canvas.height;
+          const isFront = (currentFacingMode === 'user');
 
           // ۱. استخوان‌های نئونی
           const bones = [
@@ -318,12 +348,15 @@ with tab_live_cam:
           if (lms[23] && lms[25] && lms[27]) {{
             const kAngle = calcAngle(lms[23], lms[25], lms[27]);
             document.getElementById('hud-knee').innerText = kAngle + '°';
-            // نوشتن زاویه در کنار زانو
             ctx.save();
-            ctx.scale(-1, 1);
             ctx.fillStyle = '#ffff00';
             ctx.font = 'bold 15px monospace';
-            ctx.fillText(kAngle + '°', -lms[25].x * w - 35, lms[25].y * h + 5);
+            if (isFront) {{
+              ctx.scale(-1, 1);
+              ctx.fillText(kAngle + '°', -lms[25].x * w - 35, lms[25].y * h + 5);
+            }} else {{
+              ctx.fillText(kAngle + '°', lms[25].x * w + 10, lms[25].y * h + 5);
+            }}
             ctx.restore();
           }}
 
@@ -331,10 +364,14 @@ with tab_live_cam:
             const eAngle = calcAngle(lms[11], lms[13], lms[15]);
             document.getElementById('hud-elbow').innerText = eAngle + '°';
             ctx.save();
-            ctx.scale(-1, 1);
             ctx.fillStyle = '#00e5ff';
             ctx.font = 'bold 15px monospace';
-            ctx.fillText(eAngle + '°', -lms[13].x * w - 35, lms[13].y * h + 5);
+            if (isFront) {{
+              ctx.scale(-1, 1);
+              ctx.fillText(eAngle + '°', -lms[13].x * w - 35, lms[13].y * h + 5);
+            }} else {{
+              ctx.fillText(eAngle + '°', lms[13].x * w + 10, lms[13].y * h + 5);
+            }}
             ctx.restore();
           }}
 
@@ -351,49 +388,154 @@ with tab_live_cam:
           }}
         }}
 
+        async function initPoseEngine() {{
+          if (!poseEngine) {{
+            poseEngine = new Pose({{
+              locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${{file}}`
+            }});
+            poseEngine.setOptions({{
+              modelComplexity: 1,
+              smoothLandmarks: true,
+              minDetectionConfidence: 0.5,
+              minTrackingConfidence: 0.5
+            }});
+            poseEngine.onResults(onResults);
+          }}
+        }}
+
+        async function updateDeviceList() {{
+          try {{
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            availableDevices = devices.filter(d => d.kind === 'videoinput');
+          }} catch (e) {{
+            console.warn("enumerateDevices error:", e);
+          }}
+        }}
+
+        async function startStream() {{
+          if (currentStream) {{
+            currentStream.getTracks().forEach(track => track.stop());
+            currentStream = null;
+          }}
+
+          let constraints = {{
+            audio: false,
+            video: {{
+              width: {{ ideal: 1280 }},
+              height: {{ ideal: 720 }}
+            }}
+          }};
+
+          if (availableDevices.length > 0 && availableDevices[currentDeviceIndex]) {{
+            constraints.video.deviceId = {{ exact: availableDevices[currentDeviceIndex].deviceId }};
+          }} else {{
+            constraints.video.facingMode = {{ ideal: currentFacingMode }};
+          }}
+
+          try {{
+            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+          }} catch (err) {{
+            try {{
+              currentStream = await navigator.mediaDevices.getUserMedia({{
+                audio: false,
+                video: {{ facingMode: currentFacingMode }}
+              }});
+            }} catch (err2) {{
+              currentStream = await navigator.mediaDevices.getUserMedia({{ audio: false, video: true }});
+            }}
+          }}
+
+          const video = document.getElementById('live-vid');
+          video.srcObject = currentStream;
+          await video.play();
+
+          // بررسی حالت سلفی برای آینه‌ای کردن
+          const track = currentStream.getVideoTracks()[0];
+          const settings = track.getSettings ? track.getSettings() : {{}};
+          const isFront = (settings.facingMode === 'user') || (currentFacingMode === 'user');
+          currentFacingMode = isFront ? 'user' : 'environment';
+
+          const canvas = document.getElementById('live-canvas');
+          if (isFront) {{
+            video.style.transform = 'scaleX(-1)';
+            canvas.style.transform = 'scaleX(-1)';
+            document.getElementById('cam-badge').innerText = '📷 دوربین جلو (سلفی)';
+          }} else {{
+            video.style.transform = 'none';
+            canvas.style.transform = 'none';
+            document.getElementById('cam-badge').innerText = '📷 دوربین پشت (اصلی)';
+          }}
+
+          isLooping = true;
+          runProcessingLoop();
+        }}
+
+        async function runProcessingLoop() {{
+          if (!isCamActive || !isLooping) return;
+          const video = document.getElementById('live-vid');
+          if (video && video.readyState >= 2 && poseEngine) {{
+            try {{
+              await poseEngine.send({{ image: video }});
+            }} catch (e) {{}}
+          }}
+          if (isCamActive) {{
+            if ('requestVideoFrameCallback' in video) {{
+              video.requestVideoFrameCallback(runProcessingLoop);
+            }} else {{
+              requestAnimationFrame(runProcessingLoop);
+            }}
+          }}
+        }}
+
         async function toggleCamera() {{
           const btn = document.getElementById('btn-toggle');
-          const video = document.getElementById('live-vid');
           if (!isCamActive) {{
             btn.innerText = '⏹ توقف دوربین';
             btn.style.background = '#ff3366';
             btn.style.color = '#fff';
             isCamActive = true;
-
-            if (!poseEngine) {{
-              poseEngine = new Pose({{
-                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${{file}}`
-              }});
-              poseEngine.setOptions({{
-                modelComplexity: 1,
-                smoothLandmarks: true,
-                minDetectionConfidence: 0.5,
-                minTrackingConfidence: 0.5
-              }});
-              poseEngine.onResults(onResults);
-            }}
-
-            camInstance = new Camera(video, {{
-              onFrame: async () => {{
-                if (isCamActive) await poseEngine.send({{ image: video }});
-              }},
-              width: 640,
-              height: 480
-            }});
-            camInstance.start();
+            await initPoseEngine();
+            await updateDeviceList();
+            await startStream();
           }} else {{
             isCamActive = false;
-            if (camInstance) camInstance.stop();
-            btn.innerText = '▶ روشن کردن دوربین زنده';
+            isLooping = false;
+            if (currentStream) {{
+              currentStream.getTracks().forEach(t => t.stop());
+              currentStream = null;
+            }}
+            btn.innerText = '▶ روشن کردن دوربین';
             btn.style.background = '#00ff88';
             btn.style.color = '#000';
+          }}
+        }}
+
+        async function switchCamera() {{
+          await updateDeviceList();
+          if (availableDevices.length > 1) {{
+            currentDeviceIndex = (currentDeviceIndex + 1) % availableDevices.length;
+            const label = (availableDevices[currentDeviceIndex].label || '').toLowerCase();
+            if (label.includes('front') || label.includes('selfie') || label.includes('user')) {{
+              currentFacingMode = 'user';
+            }} else {{
+              currentFacingMode = 'environment';
+            }}
+          }} else {{
+            currentFacingMode = (currentFacingMode === 'environment') ? 'user' : 'environment';
+          }}
+
+          if (isCamActive) {{
+            await startStream();
+          }} else {{
+            const badge = document.getElementById('cam-badge');
+            badge.innerText = (currentFacingMode === 'environment') ? '📷 دوربین پشت (اصلی)' : '📷 دوربین جلو (سلفی)';
           }}
         }}
       </script>
     </body>
     </html>
     """
-    st.components.v1.html(live_cam_html, height=560, scrolling=False)
+    st.components.v1.html(live_cam_html, height=580, scrolling=False)
 
 
 # ==============================================================
@@ -404,17 +546,22 @@ with tab_snapshot:
     
     with col_input:
         st.markdown("##### 📸 تحلیل اسکلت عمیق با موتور محلی YOLO11")
-        input_mode = st.radio("روش دریافت عکس:", ["ثبت عکس با وب‌کم", "آپلود تصویر (JPG / PNG)"], horizontal=True)
+        st.info("📱 **نکته گوشی‌های موبایل:** برای استفاده مستقیم از دوربین پشت با حداکثر کیفیت و وضوح سنسور اصلی، گزینه **«آپلود تصویر / دوربین پشت»** را انتخاب کنید و سپس با زدن روی دکمه، دوربین پشت گوشی (Camera) را باز نمایید.")
+        input_mode = st.radio(
+            "روش دریافت عکس:",
+            ["آپلود تصویر / دوربین پشت (پیشنهادی گوشی)", "ثبت عکس مستقیم در مرورگر"],
+            horizontal=True
+        )
         enable_a4 = st.checkbox("📐 سنجش قد اتوماتیک با برگه A4 روی زمین (بدون نیاز به قد قبلی)", value=True,
                                 help="اگر یک برگه A4 سفید روی زمین کنار پاها باشد، سیستم با حل معادلات صفحه‌ای PnP قد واقعی و طول استخوان‌ها را بدون نیاز به کالیبراسیون دستی استخراج می‌کند.")
 
         pil_image = None
-        if input_mode == "ثبت عکس با وب‌کم":
-            cam_data = st.camera_input("ثبت تک‌فریم با وب‌کم جهت پردازش عمیق مفاصل:")
+        if input_mode == "ثبت عکس مستقیم در مرورگر":
+            cam_data = st.camera_input("ثبت تک‌فریم با دوربین مرورگر جهت پردازش عمیق مفاصل:")
             if cam_data is not None:
                 pil_image = Image.open(cam_data)
         else:
-            upload_data = st.file_uploader("یک عکس از ورزشکار انتخاب کنید:", type=["jpg", "jpeg", "png"])
+            upload_data = st.file_uploader("عکس باکیفیت ورزشکار را انتخاب یا با دوربین پشت ثبت کنید:", type=["jpg", "jpeg", "png"])
             if upload_data is not None:
                 pil_image = Image.open(upload_data)
         
