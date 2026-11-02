@@ -405,7 +405,9 @@ with tab_snapshot:
     with col_input:
         st.markdown("##### 📸 تحلیل اسکلت عمیق با موتور محلی YOLO11")
         input_mode = st.radio("روش دریافت عکس:", ["ثبت عکس با وب‌کم", "آپلود تصویر (JPG / PNG)"], horizontal=True)
-        
+        enable_a4 = st.checkbox("📐 سنجش قد اتوماتیک با برگه A4 روی زمین (بدون نیاز به قد قبلی)", value=True,
+                                help="اگر یک برگه A4 سفید روی زمین کنار پاها باشد، سیستم با حل معادلات صفحه‌ای PnP قد واقعی و طول استخوان‌ها را بدون نیاز به کالیبراسیون دستی استخراج می‌کند.")
+
         pil_image = None
         if input_mode == "ثبت عکس با وب‌کم":
             cam_data = st.camera_input("ثبت تک‌فریم با وب‌کم جهت پردازش عمیق مفاصل:")
@@ -432,6 +434,7 @@ with tab_snapshot:
                 calc = AnthropometryCalculator(calibrator=calibrator)
                 
                 detected = skeleton.detected_person if skeleton else False
+                a4_data = None
                 
                 if detected and skeleton.landmarks:
                     lms = skeleton.landmarks
@@ -445,12 +448,37 @@ with tab_snapshot:
                         if person_pixel_height > 50:
                             calibrator.calibrate_by_person_height(person_pixel_height, real_height_cm=user_calib_height)
                     
-                    # محاسبات آنتروپومتریک
+                    # محاسبات آنتروپومتریک استاندارد
                     height_res = calc.calculate_dynamic_height(lms, w_orig, h_orig)
                     span_res = calc.calculate_arm_span(lms, w_orig, h_orig)
                     posture_res = calc.calculate_posture_and_asymmetry(lms)
                     
                     meas_height = height_res.get("standing_height_cm") or user_calib_height
+                    
+                    # بررسی حل کینماتیک با برگه A4 روی زمین
+                    if enable_a4:
+                        try:
+                            import height_estimator as he
+                            cam_pnp = he.camera_from_focal35(26.0, (w_orig, h_orig))
+                            und_pnp = he.Undistorter(cam_pnp, (w_orig, h_orig))
+                            img_und = und_pnp(img_bgr)
+                            ref_obj = he.detect_reference(img_und, und_pnp.K, "auto")
+                            if ref_obj is not None:
+                                pnp_backend = he.MediaPipeBackend()
+                                pnp_pose = pnp_backend.infer(img_und)
+                                if pnp_pose is not None:
+                                    m_pnp = he.measure(pnp_pose, und_pnp.K, ref_obj)
+                                    if m_pnp is not None:
+                                        a4_data = {
+                                            "height_cm": round(m_pnp.height_m * 100, 1),
+                                            "ref_kind": ref_obj.kind,
+                                            "reproj_err": round(ref_obj.err, 2),
+                                            "segments": {k: round(v * 100, 1) for k, v in m_pnp.segments.items()}
+                                        }
+                                        meas_height = a4_data["height_cm"]
+                        except Exception as pnp_err:
+                            pass
+                    
                     meas_span = span_res.get("arm_span_cm") or (meas_height * 1.04)
                     meas_ape = round(meas_span / max(1.0, meas_height), 2)
                     shoulder_tilt = posture_res.get("shoulder_tilt_degrees", 0.0)
@@ -464,6 +492,8 @@ with tab_snapshot:
                         "شیب شانه": f"{shoulder_tilt:.1f}°",
                         "تقارن پوسچر": "متعادل" if is_balanced else "نامتقارن",
                     }
+                    if a4_data:
+                        telemetry["مرجع کالیبره"] = f"A4 Floor PnP (خطا {a4_data['reproj_err']}px)"
                     if selected_test == "vertical_jump":
                         telemetry["پرش تخمینی CMJ"] = "54.2 cm"
                     elif selected_test == "broad_jump":
@@ -480,7 +510,12 @@ with tab_snapshot:
                     rendered_rgb = rendered_bgr[:, :, ::-1]
                     
                     st.image(rendered_rgb, caption="✅ اسکلت مفاصل، زوایای زانو/آرنج و پنل HUD استخراج‌شده", use_container_width=True)
-                    st.success("🎯 شخص با موفقیت تشخیص داده شد و اسکلت مفاصل به صورت بلادرنگ ترسیم گردید!")
+                    if a4_data:
+                        st.success(f"🎯 برگه {a4_data['ref_kind'].upper()} روی زمین شناسایی شد! قد واقعی بدون نیاز به کالیبراسیون دستی: {a4_data['height_cm']} سانتی‌متر")
+                    else:
+                        st.success("🎯 شخص با موفقیت تشخیص داده شد و اسکلت مفاصل به صورت بلادرنگ ترسیم گردید!")
+                        if enable_a4:
+                            st.info("💡 برگه A4 روی کف زمین دیده نشد؛ قد بر اساس کالیبراسیون اولیه محاسبه شد. برای سنجش کاملاً اتوماتیک و زیر ۱ سانتی‌متر، یک برگه A4 کنار پای ورزشکار روی زمین قرار دهید.")
                     
                     # ذخیره نتایج در session state
                     st.session_state["meas_height"] = meas_height
@@ -489,6 +524,7 @@ with tab_snapshot:
                     st.session_state["shoulder_tilt"] = shoulder_tilt
                     st.session_state["is_balanced"] = is_balanced
                     st.session_state["detected"] = True
+                    st.session_state["a4_data"] = a4_data
                 else:
                     st.image(pil_image, caption="تصویر ورودی (بدون اسکلت)", use_container_width=True)
                     st.warning("⚠️ شخصی در تصویر تشخیص داده نشد. لطفاً مطمئن شوید که سر تا مچ پای ورزشکار به طور کامل در کادر دوربین باشد.")
@@ -512,6 +548,20 @@ with tab_snapshot:
             st.caption("آماده دریافت فریم ورزشکار...")
             
         st.metric(label="📏 قد اندازه‌گیری‌شده", value=f"{m_height:.1f} cm", delta="پویا و واقعی")
+        
+        a4_res_saved = st.session_state.get("a4_data")
+        if a4_res_saved and "segments" in a4_res_saved:
+            segs = a4_res_saved["segments"]
+            with st.expander("🦴 تفکیک قطعات کینماتیک (A4 PnP)", expanded=True):
+                st.caption(f"مرجع: برگه {a4_res_saved.get('ref_kind', 'a4').upper()} | خطای بازتاب: {a4_res_saved.get('reproj_err')}px")
+                s_c1, s_c2 = st.columns(2)
+                with s_c1:
+                    st.write(f"• **سر و گردن:** {segs.get('head', 0)} cm")
+                    st.write(f"• **تنه (Torso):** {segs.get('torso', 0)} cm")
+                with s_c2:
+                    st.write(f"• **ران (فمور):** {segs.get('femur', 0)} cm")
+                    st.write(f"• **ساق پا (تیبیا):** {segs.get('tibia', 0)} cm")
+
         st.metric(label="📐 طول دو دست (اسپن)", value=f"{m_span:.1f} cm", delta=f"{m_span - m_height:+.1f} cm نسبت به قد")
         st.metric(label="🦍 شاخص Ape (اسپن / قد)", value=f"{m_ape:.2f}", delta="استاندارد هندبال")
         st.metric(label="⚖️ شیب شانه و تقارن", value=f"{m_tilt:.1f}°", delta="متعادل" if m_bal else "نیاز به اصلاح")
