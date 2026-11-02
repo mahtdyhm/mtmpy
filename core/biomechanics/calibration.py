@@ -54,3 +54,15 @@ class SpatialCalibrator:
         pixel_dist = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
         meters = pixel_dist / self.pixels_per_meter
         return meters * 100.0
+
+    def calibrate_by_person_height(
+        self,
+        pixel_height: float,
+        real_height_cm: float = 180.0,
+    ) -> float:
+        """کالیبراسیون مقیاس با استفاده از قد کلی شخص بر حسب پیکسل"""
+        if pixel_height > 10 and real_height_cm > 10:
+            meters = real_height_cm / 100.0
+            self.pixels_per_meter = pixel_height / meters
+            self.is_calibrated = True
+        return self.pixels_per_meter

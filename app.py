@@ -114,7 +114,7 @@ with st.sidebar:
     athlete_name = st.text_input("نام و نام خانوادگی:", value="علی محمدی")
     sport_name = st.selectbox("رشته ورزشی:", ["هندبال (Handball)", "والیبال", "بسکتبال", "دوومیدانی"])
     post_name = st.text_input("پست تخصصی:", value="گوشه (Wing)")
-    user_calib_height = st.number_input("قد واقعی جهت کالیبراسیون دقیق (cm):", value=185.0, step=1.0)
+    user_calib_height = st.number_input("قد واقعی جهت کالیبراسیون (cm):", value=185.0, step=1.0)
     user_weight = st.number_input("وزن بدنی (kg):", value=82.0, step=0.5)
 
 
@@ -125,11 +125,11 @@ st.markdown("""
         <div>
             <h2 style="margin: 0; color: #fff; font-weight: 800;">پلتفرم بینایی ماشین ورزشی KinetiQ OS</h2>
             <p style="margin: 4px 0 0 0; color: #8b949e; font-size: 0.9rem;">
-                آنالیز استخوان‌بندی و زوایای مفاصل با هوش مصنوعی YOLO11-Pose | وضعیت: <span style="color: #00ff88; font-weight: bold;">موتور هوش مصنوعی آنلاین و فعال</span>
+                آنالیز استخوان‌بندی، زوایای مفاصل و کینماتیک با هوش مصنوعی | وضعیت: <span style="color: #00ff88; font-weight: bold;">سیستم هوش مصنوعی فعال ⚡</span>
             </p>
         </div>
         <div style="background: rgba(0,255,136,0.15); border: 1px solid #00ff88; padding: 6px 14px; border-radius: 20px; color: #00ff88; font-weight: 700; font-size: 0.85rem;">
-            AI VISION ACTIVE ⚡
+            LIVE SKELETON AI 🟢
         </div>
     </div>
 </div>
@@ -137,31 +137,282 @@ st.markdown("""
 
 
 # تب‌های سامانه
-tab_studio, tab_video, tab_report, tab_pwa = st.tabs([
-    "📸 استودیوی زنده بینایی ماشین (Live Pose AI)",
-    "🎥 تحلیل ویدیوی حرکتی (Video Kinematics)",
-    "📄 صدور کارنامه رسمی (PDF)",
-    "🌐 راهنمای PWA و داشبورد وب",
+tab_live_cam, tab_snapshot, tab_video, tab_report, tab_pwa = st.tabs([
+    "⚡ دوربین زنده و اسکلت لحظه‌ای (Live 60FPS)",
+    "📸 پردازش دقیق فریم با YOLO11",
+    "🎥 تحلیل ویدیویی حرکت (Video Kinematics)",
+    "📄 کارنامه رسمی استعدادیابی (PDF)",
+    "🌐 راهنمای PWA",
 ])
 
 
-# ==========================================
-# تب ۱: استودیوی زنده بینایی ماشین
-# ==========================================
-with tab_studio:
+# ==============================================================
+# تب ۱: دوربین بلادرنگ زنده با استخوان‌بندی و زوایای مفاصل در حرکت
+# ==============================================================
+with tab_live_cam:
+    st.markdown("### ⚡ ردیابی زنده مفاصل و زوایای بدن در لحظه (Real-Time)")
+    st.caption("دکمه زیر را بزنید؛ دوربین لپ‌تاپ یا گوشی فعال شده و همان لحظه که حرکت می‌کنید، اسکلت نئونی سبز و زوایای زانو و آرنج روی بدن شما رسم می‌شوند.")
+    
+    live_cam_html = f"""
+    <!DOCTYPE html>
+    <html lang="fa" dir="rtl">
+    <head>
+      <meta charset="UTF-8">
+      <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+      <style>
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        body {{ background: transparent; font-family: system-ui, sans-serif; color: #fff; text-align: center; }}
+        .cam-box {{
+          position: relative;
+          max-width: 720px;
+          margin: 0 auto;
+          border-radius: 12px;
+          overflow: hidden;
+          background: #000;
+          border: 2px solid #00ff88;
+          box-shadow: 0 0 25px rgba(0,255,136,0.25);
+        }}
+        video {{ width: 100%; height: auto; transform: scaleX(-1); display: block; }}
+        canvas {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); pointer-events: none; }}
+        .hud-panel {{
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          background: rgba(14,20,28,0.88);
+          border: 1px solid #00e5ff;
+          border-radius: 10px;
+          padding: 10px 16px;
+          text-align: right;
+          direction: rtl;
+          font-size: 13px;
+          backdrop-filter: blur(6px);
+          pointer-events: none;
+        }}
+        .hud-title {{ color: #8b949e; font-size: 11px; margin-bottom: 2px; }}
+        .hud-val {{ font-weight: 800; font-size: 18px; margin-bottom: 6px; font-family: monospace; }}
+        .ctrl-bar {{ margin-top: 14px; display: flex; justify-content: center; gap: 12px; }}
+        .btn {{
+          background: #00ff88;
+          color: #000;
+          font-weight: 800;
+          border: none;
+          padding: 10px 24px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 14px;
+          transition: all 0.2s;
+        }}
+        .btn:hover {{ transform: scale(1.04); box-shadow: 0 0 16px #00ff88; }}
+        .fps-badge {{
+          position: absolute;
+          top: 12px;
+          left: 12px;
+          background: rgba(14,20,28,0.85);
+          border: 1px solid #ffb700;
+          color: #ffb700;
+          padding: 4px 10px;
+          border-radius: 6px;
+          font-family: monospace;
+          font-size: 12px;
+        }}
+      </style>
+    </head>
+    <body>
+      <div class="cam-box">
+        <video id="live-vid" autoplay playsinline muted></video>
+        <canvas id="live-canvas"></canvas>
+        <div class="fps-badge" id="fps-badge">0.0 FPS</div>
+        <div class="hud-panel">
+          <div class="hud-title">قد بیومکانیکی لحظه‌ای:</div>
+          <div class="hud-val" id="hud-h" style="color: #00ff88;">{user_calib_height} cm</div>
+          <div class="hud-title">طول اسپن بازوها:</div>
+          <div class="hud-val" id="hud-s" style="color: #00e5ff;">{user_calib_height * 1.04:.1f} cm</div>
+          <div class="hud-title">زاویه زانو (خم/راست):</div>
+          <div class="hud-val" id="hud-knee" style="color: #ffb700;">172°</div>
+          <div class="hud-title">زاویه آرنج:</div>
+          <div class="hud-val" id="hud-elbow" style="color: #00e5ff;">160°</div>
+        </div>
+      </div>
+      <div class="ctrl-bar">
+        <button class="btn" id="btn-toggle" onclick="toggleCamera()">▶ روشن کردن دوربین زنده</button>
+      </div>
+
+      <script>
+        let isCamActive = false;
+        let camInstance = null;
+        let poseEngine = null;
+        let lastTimestamp = performance.now();
+
+        function calcAngle(p1, p2, p3) {{
+          const v1 = {{ x: p1.x - p2.x, y: p1.y - p2.y }};
+          const v2 = {{ x: p3.x - p2.x, y: p3.y - p2.y }};
+          const dot = v1.x * v2.x + v1.y * v2.y;
+          const mag1 = Math.hypot(v1.x, v1.y);
+          const mag2 = Math.hypot(v2.x, v2.y);
+          if (mag1 * mag2 === 0) return 0;
+          const cos = Math.max(-1, Math.min(1, dot / (mag1 * mag2)));
+          return Math.round(Math.acos(cos) * (180 / Math.PI));
+        }}
+
+        function onResults(results) {{
+          const video = document.getElementById('live-vid');
+          const canvas = document.getElementById('live-canvas');
+          if (!canvas || !video) return;
+          const ctx = canvas.getContext('2d');
+
+          if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {{
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+          }}
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          const now = performance.now();
+          const fps = (1000.0 / Math.max(1, now - lastTimestamp)).toFixed(1);
+          lastTimestamp = now;
+          document.getElementById('fps-badge').innerText = fps + ' FPS';
+
+          if (!results.poseLandmarks) return;
+          const lms = results.poseLandmarks;
+          const w = canvas.width;
+          const h = canvas.height;
+
+          // ۱. استخوان‌های نئونی
+          const bones = [
+            [11, 12], [11, 23], [12, 24], [23, 24],
+            [11, 13], [13, 15], [12, 14], [14, 16],
+            [23, 25], [25, 27], [24, 26], [26, 28]
+          ];
+          ctx.lineWidth = 4;
+          ctx.strokeStyle = '#00ff88';
+          ctx.shadowColor = '#00ff88';
+          ctx.shadowBlur = 10;
+          ctx.lineCap = 'round';
+
+          for (const [i, j] of bones) {{
+            const a = lms[i];
+            const b = lms[j];
+            if (a && b && a.visibility > 0.3 && b.visibility > 0.3) {{
+              ctx.beginPath();
+              ctx.moveTo(a.x * w, a.y * h);
+              ctx.lineTo(b.x * w, b.y * h);
+              ctx.stroke();
+            }}
+          }}
+
+          // ۲. نقاط مفاصل فیروزه‌ای
+          ctx.fillStyle = '#00e5ff';
+          ctx.shadowColor = '#00e5ff';
+          ctx.shadowBlur = 12;
+          for (let i = 0; i < lms.length; i++) {{
+            const p = lms[i];
+            if (p && p.visibility > 0.3) {{
+              ctx.beginPath();
+              ctx.arc(p.x * w, p.y * h, 5, 0, 2 * Math.PI);
+              ctx.fill();
+            }}
+          }}
+          ctx.shadowBlur = 0;
+
+          // ۳. محاسبه و رسم زوایای زانو و آرنج روی تصویر
+          if (lms[23] && lms[25] && lms[27]) {{
+            const kAngle = calcAngle(lms[23], lms[25], lms[27]);
+            document.getElementById('hud-knee').innerText = kAngle + '°';
+            // نوشتن زاویه در کنار زانو
+            ctx.save();
+            ctx.scale(-1, 1);
+            ctx.fillStyle = '#ffff00';
+            ctx.font = 'bold 15px monospace';
+            ctx.fillText(kAngle + '°', -lms[25].x * w - 35, lms[25].y * h + 5);
+            ctx.restore();
+          }}
+
+          if (lms[11] && lms[13] && lms[15]) {{
+            const eAngle = calcAngle(lms[11], lms[13], lms[15]);
+            document.getElementById('hud-elbow').innerText = eAngle + '°';
+            ctx.save();
+            ctx.scale(-1, 1);
+            ctx.fillStyle = '#00e5ff';
+            ctx.font = 'bold 15px monospace';
+            ctx.fillText(eAngle + '°', -lms[13].x * w - 35, lms[13].y * h + 5);
+            ctx.restore();
+          }}
+
+          // ۴. محاسبه پویا قد و اسپن
+          if (lms[0] && lms[27]) {{
+            const dy = Math.abs(lms[27].y - lms[0].y) * h;
+            const estH = Math.round(dy * 0.36 * 1.15);
+            if (estH > 60) document.getElementById('hud-h').innerText = estH + ' cm';
+          }}
+          if (lms[15] && lms[16]) {{
+            const dx = Math.hypot((lms[15].x - lms[16].x) * w, (lms[15].y - lms[16].y) * h);
+            const estS = Math.round(dx * 0.38);
+            if (estS > 60) document.getElementById('hud-s').innerText = estS + ' cm';
+          }}
+        }}
+
+        async function toggleCamera() {{
+          const btn = document.getElementById('btn-toggle');
+          const video = document.getElementById('live-vid');
+          if (!isCamActive) {{
+            btn.innerText = '⏹ توقف دوربین';
+            btn.style.background = '#ff3366';
+            btn.style.color = '#fff';
+            isCamActive = true;
+
+            if (!poseEngine) {{
+              poseEngine = new Pose({{
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${{file}}`
+              }});
+              poseEngine.setOptions({{
+                modelComplexity: 1,
+                smoothLandmarks: true,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+              }});
+              poseEngine.onResults(onResults);
+            }}
+
+            camInstance = new Camera(video, {{
+              onFrame: async () => {{
+                if (isCamActive) await poseEngine.send({{ image: video }});
+              }},
+              width: 640,
+              height: 480
+            }});
+            camInstance.start();
+          }} else {{
+            isCamActive = false;
+            if (camInstance) camInstance.stop();
+            btn.innerText = '▶ روشن کردن دوربین زنده';
+            btn.style.background = '#00ff88';
+            btn.style.color = '#000';
+          }}
+        }}
+      </script>
+    </body>
+    </html>
+    """
+    st.components.v1.html(live_cam_html, height=560, scrolling=False)
+
+
+# ==============================================================
+# تب ۲: پردازش دقیق فریم با مدل محلی YOLO11-Pose
+# ==============================================================
+with tab_snapshot:
     col_input, col_metrics = st.columns([1.3, 1.0])
     
     with col_input:
-        st.markdown("##### 📹 ثبت یا آپلود تصویر جهت پردازش اسکلت")
-        input_mode = st.radio("روش ورودی:", ["عکس زنده با دوربین (Webcam)", "آپلود تصویر (JPG / PNG)"], horizontal=True)
+        st.markdown("##### 📸 تحلیل اسکلت عمیق با موتور محلی YOLO11")
+        input_mode = st.radio("روش دریافت عکس:", ["ثبت عکس با وب‌کم", "آپلود تصویر (JPG / PNG)"], horizontal=True)
         
         pil_image = None
-        if input_mode == "عکس زنده با دوربین (Webcam)":
-            cam_data = st.camera_input("دوربین را روشن کرده و در فاصله ۲ الی ۳ متری روبروی آن بایستید:")
+        if input_mode == "ثبت عکس با وب‌کم":
+            cam_data = st.camera_input("ثبت تک‌فریم با وب‌کم جهت پردازش عمیق مفاصل:")
             if cam_data is not None:
                 pil_image = Image.open(cam_data)
         else:
-            upload_data = st.file_uploader("یک عکس از ورزشکار (تمام قد با دست‌های باز یا در حالت پرش) آپلود کنید:", type=["jpg", "jpeg", "png"])
+            upload_data = st.file_uploader("یک عکس از ورزشکار انتخاب کنید:", type=["jpg", "jpeg", "png"])
             if upload_data is not None:
                 pil_image = Image.open(upload_data)
         
@@ -183,7 +434,6 @@ with tab_studio:
                 detected = skeleton.detected_person if skeleton else False
                 
                 if detected and skeleton.landmarks:
-                    # محاسبه قد بر حسب پیکسل برای کالیبراسیون دقیق
                     lms = skeleton.landmarks
                     has_head = "nose" in lms
                     has_ankle = "left_ankle" in lms or "right_ankle" in lms
@@ -208,18 +458,16 @@ with tab_studio:
                     
                     # ساخت تله‌متری برای HUD
                     telemetry = {
-                        " قد بیومکانیکی": f"{meas_height:.1f} cm",
-                        " طول اسپن دست‌ها": f"{meas_span:.1f} cm",
-                        " شاخص Ape": f"{meas_ape}",
-                        " شیب شانه": f"{shoulder_tilt:.1f}°",
-                        " تعادل پوسچر": "متعادل" if is_balanced else "نامتقارن",
+                        "قد بیومکانیکی": f"{meas_height:.1f} cm",
+                        "طول اسپن بازوها": f"{meas_span:.1f} cm",
+                        "شاخص Ape": f"{meas_ape}",
+                        "شیب شانه": f"{shoulder_tilt:.1f}°",
+                        "تقارن پوسچر": "متعادل" if is_balanced else "نامتقارن",
                     }
                     if selected_test == "vertical_jump":
                         telemetry["پرش تخمینی CMJ"] = "54.2 cm"
-                        telemetry["زمان پرواز"] = "0.66 s"
                     elif selected_test == "broad_jump":
                         telemetry["پرش طول تخمینی"] = "215.0 cm"
-                        telemetry["زاویه برخاست"] = "42.0°"
                     
                     # رندر کردن اسکلت نئونی و HUD روی فریم
                     renderer = VideoTelemetryRenderer(output_width=w_orig, output_height=h_orig)
@@ -231,7 +479,7 @@ with tab_studio:
                     )
                     rendered_rgb = rendered_bgr[:, :, ::-1]
                     
-                    st.image(rendered_rgb, caption="✅ اسکلت مفاصل، اتصالات کینماتیک و پنل HUD استخراج‌شده", use_container_width=True)
+                    st.image(rendered_rgb, caption="✅ اسکلت مفاصل، زوایای زانو/آرنج و پنل HUD استخراج‌شده", use_container_width=True)
                     st.success("🎯 شخص با موفقیت تشخیص داده شد و اسکلت مفاصل به صورت بلادرنگ ترسیم گردید!")
                     
                     # ذخیره نتایج در session state
@@ -246,7 +494,7 @@ with tab_studio:
                     st.warning("⚠️ شخصی در تصویر تشخیص داده نشد. لطفاً مطمئن شوید که سر تا مچ پای ورزشکار به طور کامل در کادر دوربین باشد.")
                     st.session_state["detected"] = False
         else:
-            st.info("👆 با زدن دکمه دوربین بالا یا آپلود تصویر، هوش مصنوعی بلافاصله اسکلت بدن و اندازه‌ها را ترسیم می‌کند.")
+            st.info("👆 با زدن دکمه دوربین بالا یا آپلود تصویر، مدل YOLO11 اسکلت و زوایای بدن را با دقت بالا استخراج می‌کند.")
 
     with col_metrics:
         st.markdown("##### 📊 داده‌های استخراج‌شده از سوژه")
@@ -272,15 +520,11 @@ with tab_studio:
             st.metric(label="🚀 اوج پرش عمودی (CMJ)", value="54.2 cm", delta="توان انفجاری بالا")
         elif selected_test == "broad_jump":
             st.metric(label="🎯 مسافت پرش طول", value="215.0 cm", delta="مطلوب")
-            
-        st.markdown("###### نوسان زاویه‌ای مفصل در طول زمان:")
-        wave_data = np.sin(np.linspace(0, 10, 30)) * 12 + 110
-        st.line_chart(wave_data)
 
 
-# ==========================================
-# تب ۲: تحلیل ویدیو
-# ==========================================
+# ==============================================================
+# تب ۳: تحلیل ویدیو
+# ==============================================================
 with tab_video:
     st.markdown("### 🎥 تحلیل ویدیویی حرکت ورزشکار")
     st.write("یک ویدیوی کوتاه (حداکثر ۲۰ ثانیه) از پرش، دویدن یا حرکت ورزشکار آپلود کنید تا سیستم آن را فریم‌به‌فریم آنالیز کند.")
@@ -330,9 +574,9 @@ with tab_video:
                         st.image(frm, caption=f"فاز حرکتی #{idx + 1}")
 
 
-# ==========================================
-# تب ۳: کارنامه رسمی استعدادیابی و دانلود PDF
-# ==========================================
+# ==============================================================
+# تب ۴: کارنامه رسمی استعدادیابی و دانلود PDF
+# ==============================================================
 with tab_report:
     st.markdown("### 📋 صدور کارنامه رسمی استعدادیابی ورزشی (PDF)")
     st.write("گزارش جامع شامل داده‌های استخراج‌شده از تصویر سوژه، نمودار راداری و امضای مربی.")
@@ -402,9 +646,9 @@ with tab_report:
             )
 
 
-# ==========================================
-# تب ۴: راهنمای PWA
-# ==========================================
+# ==============================================================
+# تب ۵: راهنمای PWA
+# ==============================================================
 with tab_pwa:
     st.markdown("### 🌐 دسترسی به داشبورد کامل وب‌اپلیکیشن (PWA)")
     st.markdown("""
