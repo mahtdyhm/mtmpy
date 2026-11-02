@@ -63,7 +63,10 @@ class MediaPipePoseEstimator(BasePoseEstimator):
         """مقداردهی اولیه پایپ‌لاین مدیاپایپ"""
         if self.is_initialized:
             return
-        mp_pose = mp.solutions.pose
+        try:
+            mp_pose = mp.solutions.pose
+        except (AttributeError, ImportError):
+            from mediapipe.python.solutions import pose as mp_pose
         self.pose = mp_pose.Pose(
             static_image_mode=False,
             model_complexity=self.model_complexity,
