@@ -9,7 +9,10 @@ import time
 from pathlib import Path
 import streamlit as st
 import numpy as np
-import cv2
+try:
+    import cv2
+except ImportError:
+    cv2 = None
 from PIL import Image
 
 # تنظیمات اولیه صفحه Streamlit
@@ -269,3 +272,4 @@ with tab_pwa:
         st.components.v1.html(raw_html, height=850, scrolling=True)
     else:
         st.warning("فایل static/index.html یافت نشد.")
+
